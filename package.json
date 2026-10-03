@@ -1,0 +1,52 @@
+{
+  "name": "mildkin",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "dependencies": {
+    "next": "16.3.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@opennextjs/cloudflare": "1.20.6",
+    "drizzle-orm": "0.45.3",
+    "zod": "4.6.5",
+    "react-hook-form": "7.89.0",
+    "@hookform/resolvers": "5.9.1",
+    "lucide-react": "1.48.0",
+    "jose": "6.2.12"
+  },
+  "devDependencies": {
+    "typescript": "6.0.2",
+    "@types/node": "26.6.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tailwindcss": "4.3.3",
+    "@tailwindcss/postcss": "4.3.3",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "16.3.6",
+    "wrangler": "4.142.0",
+    "@cloudflare/workers-types": "5.20260928.1",
+    "drizzle-kit": "0.31.11",
+    "vitest": "5.0.2",
+    "miniflare": "5.20260926.0-alpha",
+    "sharp": "0.35.5"
+  },
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "build:cloudflare": "opennextjs-cloudflare build",
+    "preview": "npm run build:cloudflare && opennextjs-cloudflare preview",
+    "deploy": "npm run build:cloudflare && opennextjs-cloudflare deploy",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply mildkin-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply mildkin-db --remote",
+    "db:seed": "wrangler d1 execute mildkin-db --local --file=db/seed.sql",
+    "db:seed:remote": "wrangler d1 execute mildkin-db --remote --file=db/seed.sql",
+    "cf:typegen": "wrangler types"
+  }
+}

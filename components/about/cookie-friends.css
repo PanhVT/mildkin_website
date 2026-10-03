@@ -1,0 +1,85 @@
+.meet-friends {
+  padding-block: 64px;
+}
+.meet-friends p {
+  color: var(--mildkin-brown);
+  line-height: 1.85;
+}
+.meet-friends-heading {
+  max-width: 780px;
+  margin: 0 auto 36px;
+  text-align: center;
+}
+.meet-friends-heading h2 {
+  margin: 12px 0 16px;
+}
+.meet-friends-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+}
+.meet-friend {
+  text-align: center;
+  transition: transform 0.2s;
+}
+.meet-friend:hover {
+  transform: translateY(-2px);
+}
+.meet-friend-art {
+  background: #fffadb;
+  border-radius: 48% 48% 24px 24px;
+  padding: 12px 24px;
+}
+.meet-friend-rabbit .meet-friend-art {
+  background: var(--mildkin-green);
+}
+.meet-friend-cat .meet-friend-art {
+  background: var(--mildkin-pink);
+}
+.meet-friend-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.meet-friend h3 {
+  font-size: 28px;
+  font-weight: 800;
+  margin-top: 18px;
+}
+.meet-friend p {
+  font-size: 14px;
+}
+.meet-friend .meet-friend-tagline {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 8px 0 12px;
+}
+@media (max-width: 1024px) {
+  .meet-friends-grid {
+    gap: 18px;
+  }
+}
+@media (max-width: 768px) {
+  .meet-friends {
+    padding-block: 44px;
+  }
+  .meet-friends-grid {
+    grid-template-columns: 1fr;
+    max-width: 480px;
+    margin-inline: auto;
+    gap: 32px;
+  }
+}
+@media (max-width: 520px) {
+  .meet-friends-heading h2 {
+    font-size: 1.8rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .meet-friend {
+    transition: none;
+  }
+  .meet-friend:hover {
+    transform: none;
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mildkin",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "mildkin" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mildkin-db",
+      "database_id": "f3f09c7a-f443-49d0-a4e3-c14d0929b193",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  "vars": {
+    "PAYMENT_PROVIDER": "sepay",
+    "SEPAY_WEBHOOK_AUTH": "apikey",
+    "SEPAY_BANK_CODE": "MB",
+    "SITE_URL": "https://mildkin.mildkin.workers.dev",
+    "STORE_LAT": "21.000127",
+    "STORE_LNG": "105.843153"
+  },
+}
