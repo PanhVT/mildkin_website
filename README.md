@@ -75,7 +75,26 @@ Checkout từ chối tạo đơn nếu ngân hàng hoặc webhook secret chưa �
 
 Không cần SePay API token cho luồng webhook này. `SEPAY_WEBHOOK_SECRET` là credential xác thực **webhook**, không phải API token gọi REST SePay. Không có `ADMIN_SECRET`: dùng Cloudflare Access và kiểm chứng JWT tại server.
 
-Phí ship nằm trong `lib/shipping.ts`: Haversine từ STORE_LAT/STORE_LNG đến tọa độ khách, tính phí bằng khoảng cách chưa làm tròn. 0–2 km: 0đ; trên 2–4: 10.000đ; trên 4–6: 15.000đ; trên 6–7: 20.000đ; trên 7–dưới 8: 25.000đ; từ 8 km: chỉ PICKUP (0đ). Không dùng dịch vụ bản đồ trả phí.
+## Tính phí giao hàng
+
+Phí giao hàng được tính theo khoảng cách từ điểm lấy bánh Mildkin tại NEU đến địa chỉ nhận bánh. Quy tắc nằm trong `lib/shipping.ts`:
+
+| Khoảng cách | Phí giao hàng |
+|---|---|
+| Từ 0 đến 2 km | Miễn phí |
+| Trên 2 đến 4 km | 10.000đ |
+| Trên 4 đến 6 km | 15.000đ |
+| Trên 6 đến 7 km | 20.000đ |
+| Trên 7 đến dưới 8 km | 25.000đ |
+| Từ 8 km trở lên | Không hỗ trợ giao hàng; khách có thể chọn nhận tại NEU |
+
+Chọn **nhận tại NEU** (`PICKUP`) luôn có phí 0đ và không cần tính khoảng cách. Mildkin sẽ xác nhận thời gian và điểm nhận cụ thể sau khi đặt hàng.
+
+**Tổng thanh toán = tổng tiền bánh + phí giao hàng.** Ví dụ: tiền bánh 100.000đ, khoảng cách 5 km thì phí giao hàng là 15.000đ và tổng thanh toán là 115.000đ.
+
+Khoảng cách được tính bằng công thức Haversine từ `STORE_LAT` / `STORE_LNG` đến tọa độ khách, không phải quãng đường đi xe thực tế. Phí áp dụng theo khoảng cách **chưa làm tròn**; khoảng cách trên giao diện chỉ hiển thị tối đa 2 chữ số thập phân. Ví dụ: đúng 4 km tính 10.000đ, nhưng 4,001 km tính 15.000đ; đúng 8 km không hỗ trợ giao hàng.
+
+### Quy trình và cấu hình
 
 Khách nhập địa chỉ, phường/xã, quận/huyện, Hà Nội rồi bấm “Tính phí giao hàng”. Browser gửi 4 trường đến POST /api/shipping/quote; backend gọi Geoapify, chọn kết quả phù hợp ở Hà Nội rồi tính Haversine và phí. Khi tạo DELIVERY order, server gọi geocoding mới và tính lại khoảng cách/phí/total, bỏ qua tọa độ/phí/khoảng cách frontend. PICKUP không gọi geocode. Đổi địa chỉ làm vô hiệu quote.
 
