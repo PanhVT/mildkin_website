@@ -28,9 +28,13 @@ export const products = sqliteTable(
     slug: text("slug").notNull().unique(),
     name: text("name").notNull(),
     description: text("description").notNull(),
+    packLabel: text("pack_label").default("3 cookies / pack"),
+    unitsPerPack: integer("units_per_pack").notNull().default(1),
     price: integer("price").notNull(),
     imageUrl: text("image_url").notNull(),
     flavor: text("flavor").notNull(),
+    category: text("category").notNull().default("COOKIE"),
+    isSpecial: integer("is_special", { mode: "boolean" }).notNull().default(false),
     seasonal: integer("seasonal", { mode: "boolean" }).notNull().default(false),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     stock: integer("stock").notNull().default(0),
@@ -40,6 +44,7 @@ export const products = sqliteTable(
   (t) => [
     check("product_price_positive", sql`${t.price} > 0`),
     check("stock_nonnegative", sql`${t.stock} >= 0`),
+    check("units_per_pack_positive", sql`${t.unitsPerPack} >= 1`),
   ],
 );
 export const users = sqliteTable(
@@ -82,6 +87,8 @@ export const orders = sqliteTable(
     accessTokenHash: text("access_token_hash").notNull().unique(),
     userId: text("user_id").references(() => users.id),
     customerName: text("customer_name").notNull(),
+    customerInstagram: text("customer_instagram"),
+    instagramContactedAt: integer("instagram_contacted_at"),
     phone: text("phone").notNull(),
     address: text("address").notNull(),
     ward: text("ward").notNull(),
@@ -90,8 +97,15 @@ export const orders = sqliteTable(
     note: text("note"),
     subtotal: integer("subtotal").notNull(),
     shippingFee: integer("shipping_fee").notNull(),
-    shippingMethod: text("shipping_method", { enum: ["DELIVERY", "PICKUP"] }).notNull().default("DELIVERY"),
+    shippingMethod: text("shipping_method", { enum: ["DELIVERY", "PICKUP"] })
+      .notNull()
+      .default("DELIVERY"),
     deliveryDistanceMeters: integer("delivery_distance_meters"),
+    deliveryAssignee: text("delivery_assignee"),
+    deliveryStatus: text("delivery_status", { enum: ["UNASSIGNED", "WAITING", "IN_DELIVERY", "COMPLETED"] }).notNull().default("UNASSIGNED"),
+    assignedAt: integer("assigned_at"),
+    deliveryStartedAt: integer("delivery_started_at"),
+    deliveredAt: integer("delivered_at"),
     total: integer("total").notNull(),
     status: text("status", { enum: orderStatuses })
       .notNull()
@@ -99,6 +113,9 @@ export const orders = sqliteTable(
     paymentStatus: text("payment_status", { enum: paymentStatuses })
       .notNull()
       .default("PENDING"),
+    paymentMethod: text("payment_method", { enum: ["BANK_TRANSFER", "COD"] })
+      .notNull()
+      .default("BANK_TRANSFER"),
     bankCode: text("bank_code").notNull(),
     bankAccount: text("bank_account").notNull(),
     accountHolder: text("account_holder").notNull(),
@@ -112,6 +129,8 @@ export const orders = sqliteTable(
     index("orders_payment_status_idx").on(t.paymentStatus),
     index("orders_created_at_idx").on(t.createdAt),
     index("orders_user_id_idx").on(t.userId),
+    index("orders_delivery_idx").on(t.status, t.deliveryStatus, t.deliveryAssignee),
+    check("delivery_status_valid", sql`${t.deliveryStatus} IN ('UNASSIGNED','WAITING','IN_DELIVERY','COMPLETED')`),
     check(
       "order_total_valid",
       sql`${t.total} = ${t.subtotal} + ${t.shippingFee} AND ${t.subtotal} > 0 AND ${t.shippingFee} >= 0`,
@@ -166,4 +185,12 @@ export const requestLimits = sqliteTable(
     expiresAt: integer("expires_at").notNull(),
   },
   (t) => [index("request_limits_expiry_idx").on(t.expiresAt)],
+);
+export const sellerSessions = sqliteTable(
+  "seller_sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    expiresAt: integer("expires_at").notNull(),
+  },
+  (t) => [index("seller_sessions_expiry_idx").on(t.expiresAt)],
 );

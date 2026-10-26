@@ -1,3 +1,5 @@
+import { orderStatusLabel } from "@/lib/seller/order-status";
+import { formatOrderAddress } from "@/lib/address";
 import { ShippingDetails } from "@/components/orders/shipping-details";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -6,6 +8,7 @@ import { userOrder } from "@/lib/auth/orders";
 import { getEnv } from "@/lib/env";
 import { formatCurrency } from "@/lib/currency";
 import { formatDate, statusLabels } from "@/lib/status";
+import { paymentMethodLabel } from "@/lib/payments/method";
 export const metadata = { title: "Chi tiết đơn bánh" };
 export default async function AccountOrderPage({
   params,
@@ -59,20 +62,20 @@ export default async function AccountOrderPage({
             {order.customerName} · {order.phone}
           </p>
           {order.shippingMethod === "DELIVERY" && <p>
-            {[order.address, order.ward, order.district, order.city].join(", ")}
+            {formatOrderAddress(order)}
           </p>}
           {order.note && <p>Ghi chú: {order.note}</p>}
           <dl className="account-status">
             <div>
               <dt>Thanh toán</dt>
-              <dd>{statusLabels[order.paymentStatus]}</dd>
+              <dd>{paymentMethodLabel(order.paymentMethod, order.shippingMethod)} — {order.paymentMethod === "COD" && order.paymentStatus === "PENDING" ? "Chưa thanh toán" : statusLabels[order.paymentStatus]}</dd>
             </div>
             <div>
               <dt>Đơn hàng</dt>
-              <dd>{statusLabels[order.status]}</dd>
+              <dd>{orderStatusLabel(order.status, order.paymentMethod)}</dd>
             </div>
           </dl>
-          {order.paymentStatus === "PENDING" && (
+          {order.paymentMethod === "BANK_TRANSFER" && order.paymentStatus === "PENDING" && (
             <p className="notice">
               Để thanh toán, hãy dùng trang QR đã mở khi đặt đơn trên thiết bị
               đó. Trang này chỉ hiển thị lịch sử đơn bánh.

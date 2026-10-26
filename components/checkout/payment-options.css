@@ -1,0 +1,11 @@
+.checkout-payment-options { border: 0; padding: 0; margin: 28px 0 0; min-width: 0; display: grid; gap: 12px; }
+.checkout-payment-options legend { font-size: 20px; font-weight: 800; margin-bottom: 16px; }
+.checkout-payment-choice { display: flex; align-items: flex-start; gap: 12px; padding: 18px; border: 1px solid #31482225; border-radius: 18px; background: #fffef6; color: #314822; cursor: pointer; }
+.checkout-payment-choice.is-selected { background: #fce5e2; border-color: #b47d80; box-shadow: 0 0 0 1px #fab6b650; }
+.checkout-payment-choice input[type=radio] { width: 18px; height: 18px; flex: none; margin: 3px 0 0; accent-color: #314822; }
+.checkout-payment-choice > svg { flex: none; margin-top: 1px; }
+.checkout-payment-choice strong { display: block; font-size: 14px; line-height: 1.5; }
+.checkout-payment-choice small { display: block; margin-top: 5px; font-size: 12px; line-height: 1.7; color: #65725c; }
+.checkout-payment-choice:focus-within { outline: 2px solid #314822; outline-offset: 3px; }
+.checkout-payment-options:disabled { opacity: .65; }
+@media(max-width: 480px) { .checkout-payment-choice { padding: 15px 12px; gap: 9px; } }

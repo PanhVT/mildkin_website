@@ -15,7 +15,7 @@ export async function expireOrders(db: D1Database, now = Date.now()) {
   // Database trigger returns reservations exactly once when status changes to CANCELLED.
   await db
     .prepare(
-      "UPDATE orders SET payment_status='EXPIRED', status='CANCELLED', updated_at=? WHERE payment_status='PENDING' AND expires_at <= ?",
+      "UPDATE orders SET payment_status='EXPIRED', status='CANCELLED', updated_at=? WHERE payment_method='BANK_TRANSFER' AND payment_status='PENDING' AND expires_at <= ?",
     )
     .bind(now, now)
     .run();
@@ -27,7 +27,7 @@ export async function createOrder(
 ) {
   const parsed = checkoutSchema.safeParse(input);
   if (!parsed.success)
-    throw new PublicError("Vui lòng kiểm tra thông tin giao hàng và giỏ bánh.");
+    throw new PublicError(parsed.error.issues.find(issue => issue.path[0] === "customerInstagram")?.message || "Vui lòng kiểm tra thông tin giao hàng và giỏ bánh.");
   const { items, checkoutToken, ...customer } = parsed.data;
   const db = drizzle(env.DB);
   const accessTokenHash = await sha256(checkoutToken);
@@ -37,7 +37,8 @@ export async function createOrder(
     .where(eq(orders.accessTokenHash, accessTokenHash))
     .get();
   if (existing) return { order: existing, token: checkoutToken };
-  if (
+  const cod = customer.paymentMethod === "COD";
+  if (!cod && (
     env.PAYMENT_PROVIDER !== "sepay" ||
     !["hmac", "apikey"].includes(env.SEPAY_WEBHOOK_AUTH || "hmac") ||
     !env.SEPAY_BANK_CODE ||
@@ -45,13 +46,13 @@ export async function createOrder(
     !env.SEPAY_ACCOUNT_HOLDER ||
     !env.SEPAY_WEBHOOK_SECRET ||
     env.SEPAY_WEBHOOK_SECRET.length < 24
-  ) {
+  )) {
     throw new PublicError(
       "Mildkin đang chuẩn bị cổng thanh toán. Bạn vui lòng quay lại sau nhé.",
       503,
     );
   }
-  const bank = getBank(env.SEPAY_BANK_CODE);
+  const bank = cod ? null : getBank(env.SEPAY_BANK_CODE!);
   await expireOrders(env.DB);
   const catalog = await db
     .select()
@@ -84,11 +85,15 @@ export async function createOrder(
     ...customer,
     city: customer.city || "Hà Nội",
     ...(customer.shippingMethod === "PICKUP" ? { address: "", ward: "", district: "" } : {}),
+    instagramContactedAt: null,
     deliveryDistanceMeters: shipping.deliveryDistanceMeters,
     ...totals,
-    bankCode: bank.code,
-    bankAccount: env.SEPAY_BANK_ACCOUNT!,
-    accountHolder: env.SEPAY_ACCOUNT_HOLDER,
+    // Both methods wait initially; COD waits for seller acceptance, not payment.
+    status: "PENDING_PAYMENT" as const,
+    paymentStatus: "PENDING" as const,
+    bankCode: bank?.code || "",
+    bankAccount: cod ? "" : env.SEPAY_BANK_ACCOUNT!,
+    accountHolder: cod ? "" : env.SEPAY_ACCOUNT_HOLDER!,
     createdAt: now,
     updatedAt: now,
     expiresAt: now + 15 * 60 * 1000,

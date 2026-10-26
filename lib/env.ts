@@ -1,6 +1,10 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 export interface Env {
+  SELLER_USERNAME?: string;
+  SELLER_PASSWORD_HASH?: string;
+  SELLER_SESSION_SECRET?: string;
   DB: D1Database;
+  PRODUCT_IMAGES: R2Bucket;
   PAYMENT_PROVIDER?: string;
   SEPAY_BANK_CODE?: string;
   SEPAY_BANK_ACCOUNT?: string;

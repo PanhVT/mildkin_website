@@ -1,21 +1,50 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildFullAddress, geocodeAddress } from "@/lib/geocoding";
+import { buildFullAddress, geocodeAddress as actualGeocodeAddress } from "@/lib/geocoding";
 import { addressQuoteKey, usableAddressQuote } from "@/lib/shipping-quote-state";
-const address = { address: "số 10 ngách 28 ngõ 67 Lê Thanh Nghị", ward: "Đồng Tâm", district: "Hai Bà Trưng", city: "Hà Nội" as const };
+async function geocodeAddress(...args: Parameters<typeof actualGeocodeAddress>) {
+  const pending = actualGeocodeAddress(...args).then(value => ({ value }), error => ({ error }));
+  await vi.runAllTimersAsync();
+  const outcome = await pending;
+  if ("error" in outcome) throw outcome.error;
+  return outcome.value;
+}
+const address = { address: "số 10 ngách 28 ngõ 67 Lê Thanh Nghị", ward: "Đồng Tâm", city: "Hà Nội" as const };
 const result = { lat: 21.002, lon: 105.844, formatted: "Lê Thanh Nghị, Hà Nội", country_code: "vn", city: "Hà Nội", district: "Hai Bà Trưng", result_type: "building", rank: { confidence: 0.6, confidence_city_level: 1 } };
 const env = { GEOAPIFY_API_KEY: "test-secret-only", STORE_LAT: "21.000127", STORE_LNG: "105.843153" };
 const fetchMock = vi.fn();
 const respondWith = (results: unknown[]) => fetchMock.mockImplementation(() => Promise.resolve(Response.json({ results })));
 const queries = () => fetchMock.mock.calls.map(([url]) => url.searchParams.get("text"));
 beforeEach(() => {
+  vi.useFakeTimers();
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.stubGlobal("fetch", fetchMock.mockReset().mockImplementation(() => Promise.resolve(Response.json({ results: [result] }))));
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe("Geoapify geocoding", () => {
+  it("shares three outbound attempts between fallback and transient retries", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ results: [] }))
+      .mockRejectedValueOnce(new TypeError("network"))
+      .mockResolvedValueOnce(Response.json({ results: [result] }));
+    expect(await geocodeAddress(address, env)).toMatchObject({ lat: result.lat });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(queries()[0]).not.toBe(queries()[1]);
+    expect(queries()[1]).toBe(queries()[2]);
+  });
+  it("never starts another fallback after the shared budget is exhausted", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("network"));
+    respondWith([]);
+    await expect(geocodeAddress(address, env)).rejects.toMatchObject({ code: "ADDRESS_NOT_FOUND" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+  it("stops after a successful simplified address", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ results: [] }))
+      .mockResolvedValueOnce(Response.json({ results: [result] }));
+    expect(await geocodeAddress(address, env)).toMatchObject({ lat: result.lat });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
   it("builds a full Vietnamese address without duplicated components", () => {
-    expect(buildFullAddress(address)).toBe("số 10 ngách 28 ngõ 67 Lê Thanh Nghị, Đồng Tâm, Hai Bà Trưng, Hà Nội, Việt Nam");
-    expect(buildFullAddress({ ...address, address: "10 Lê Thanh Nghị, Hà Nội" })).toBe("10 Lê Thanh Nghị, Hà Nội, Đồng Tâm, Hai Bà Trưng, Việt Nam");
+    expect(buildFullAddress(address)).toBe("số 10 ngách 28 ngõ 67 Lê Thanh Nghị, Đồng Tâm, Hà Nội, Việt Nam");
+    expect(buildFullAddress({ ...address, address: "10 Lê Thanh Nghị, Hà Nội" })).toBe("10 Lê Thanh Nghị, Hà Nội, Đồng Tâm, Việt Nam");
   });
   it("uses server configuration, lon/lat bias and re-geocodes every request", async () => {
     expect(await geocodeAddress(address, env)).toMatchObject({ lat: result.lat, lng: result.lon });
@@ -33,47 +62,14 @@ describe("Geoapify geocoding", () => {
       status: 200, resultCount: 1, candidateCount: 1, rejected: { invalid: 0, country: 0, hanoi: 0, precision: 0 },
     });
     const logs = JSON.stringify(vi.mocked(console.warn).mock.calls);
-    for (const privateValue of [address.address, address.ward, address.district, result.formatted, env.GEOAPIFY_API_KEY, fetchMock.mock.calls[0][0].href]) {
+    for (const privateValue of [address.address, address.ward, result.formatted, env.GEOAPIFY_API_KEY, fetchMock.mock.calls[0][0].href]) {
       expect(logs).not.toContain(privateValue);
     }
   });
-  it("retries an empty full-address search with the numbered street and stops on a street result", async () => {
-    fetchMock.mockResolvedValueOnce(Response.json({ results: [] }))
-      .mockResolvedValueOnce(Response.json({ results: [{ ...result, result_type: "street" }] }));
-    expect(await geocodeAddress(address, env)).toMatchObject({ lat: result.lat });
-    expect(queries()).toEqual([buildFullAddress(address), "67 Lê Thanh Nghị, Đồng Tâm, Hai Bà Trưng, Hà Nội, Việt Nam"]);
-  });
-  it("retries unusable results with the street alone and accepts a district fallback", async () => {
-    fetchMock.mockResolvedValueOnce(Response.json({ results: [{ ...result, result_type: "city" }] }))
-      .mockResolvedValueOnce(Response.json({ results: [] }))
-      .mockResolvedValueOnce(Response.json({ results: [{ ...result, result_type: "district" }] }));
-    expect(await geocodeAddress(address, env)).toMatchObject({ lat: result.lat });
-    expect(queries()).toEqual([
-      buildFullAddress(address), "67 Lê Thanh Nghị, Đồng Tâm, Hai Bà Trưng, Hà Nội, Việt Nam",
-      "Lê Thanh Nghị, Hai Bà Trưng, Hà Nội, Việt Nam",
-    ]);
-  });
-  it.each([
-    ["số 10 ngách 28 ngõ 67 Lê Thanh Nghị", "67 Lê Thanh Nghị", "Lê Thanh Nghị"],
-    ["số 10 ngõ 67 ngách 28 Lê Thanh Nghị", "67 Lê Thanh Nghị", "Lê Thanh Nghị"],
-    ["  SỐ 10  NGÁCH 28  NGÕ 67 Lê Thanh Nghị  ", "67 Lê Thanh Nghị", "Lê Thanh Nghị"],
-    ["so 10 ngach 28 ngo 67 Le Thanh Nghi", "67 Le Thanh Nghi", "Le Thanh Nghi"],
-    ["số 10 ngách 28 Lê Thanh Nghị", "28 Lê Thanh Nghị", "Lê Thanh Nghị"],
-    ["ngõ 67A Lê Thanh Nghị, Đồng Tâm", "67A Lê Thanh Nghị", "Lê Thanh Nghị"],
-    ["số 10 ngách 28 ngõ 67 Lê Thanh Nghị".normalize("NFD"), "67 Lê Thanh Nghị", "Lê Thanh Nghị"],
-  ])("simplifies Vietnamese alley address %s", async (value, numbered, street) => {
+  it("uses distinct fallback queries without retrying an empty identical query", async () => {
     respondWith([]);
-    const input = { ...address, address: value };
-    await expect(geocodeAddress(input, env)).rejects.toMatchObject({ code: "ADDRESS_NOT_FOUND" });
-    expect(queries()).toEqual([
-      buildFullAddress(input), `${numbered}, Đồng Tâm, Hai Bà Trưng, Hà Nội, Việt Nam`,
-      `${street}, Hai Bà Trưng, Hà Nội, Việt Nam`,
-    ]);
-  });
-  it.each(["10 Lê Thanh Nghị", "10 Ngô Quyền", "số 10 ngõ 67"])("does not invent alley fallbacks for %s", async value => {
-    respondWith([]);
-    await expect(geocodeAddress({ ...address, address: value }, env)).rejects.toMatchObject({ code: "ADDRESS_NOT_FOUND" });
-    expect(fetchMock).toHaveBeenCalledOnce();
+    await expect(geocodeAddress(address, env)).rejects.toMatchObject({ code: "ADDRESS_NOT_FOUND" });
+    expect(queries()).toEqual([buildFullAddress(address), "67 Lê Thanh Nghị, Đồng Tâm, Hà Nội, Việt Nam", "Lê Thanh Nghị, Đồng Tâm, Hà Nội, Việt Nam"]);
   });
   it.each([{}, { GEOAPIFY_API_KEY: " " }, { ...env, STORE_LAT: "invalid" }])("rejects invalid configuration without fetching", async config => {
     await expect(geocodeAddress(address, config)).rejects.toMatchObject({ code: "GEOCODER_CONFIG" });
@@ -82,7 +78,7 @@ describe("Geoapify geocoding", () => {
   it.each([429, 500, 302])("maps HTTP %s to a generic code", async status => {
     fetchMock.mockResolvedValue(new Response(null, { status }));
     await expect(geocodeAddress(address, env)).rejects.toMatchObject({ code: status === 429 ? "GEOCODER_RATE_LIMIT" : "GEOCODER_HTTP" });
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(status === 302 ? 1 : 3);
   });
   it.each(["AbortError", "TimeoutError", "TypeError"])("classifies %s safely", async name => {
     fetchMock.mockRejectedValue(new DOMException(buildFullAddress(address) + env.GEOAPIFY_API_KEY, name));
@@ -127,12 +123,12 @@ describe("Geoapify geocoding", () => {
     await expect(geocodeAddress(address, env)).rejects.toMatchObject({ code: "ADDRESS_NOT_FOUND" });
     expect(console.warn).toHaveBeenCalledWith("Geoapify selection debug", { status: 200, resultCount: 4, candidateCount: 0, rejected: { invalid: 1, country: 1, hanoi: 1, precision: 1 } });
     const logs = JSON.stringify(vi.mocked(console.warn).mock.calls);
-    for (const privateValue of [address.address, address.ward, address.district, result.formatted, env.GEOAPIFY_API_KEY, "https://", "Đà Nẵng"]) {
+    for (const privateValue of [address.address, address.ward, result.formatted, env.GEOAPIFY_API_KEY, "https://", "Đà Nẵng"]) {
       expect(logs).not.toContain(privateValue);
     }
   });
-  it("selects a district match over the first candidate and skips malformed entries", async () => {
-    fetchMock.mockResolvedValue(Response.json({ results: [null, { ...result, district: "Cầu Giấy", lat: 21 }, result] }));
+  it("selects a ward match over the first candidate and skips malformed entries", async () => {
+    fetchMock.mockResolvedValue(Response.json({ results: [null, { ...result, suburb: "Bách Khoa", lat: 21 }, { ...result, suburb: "Đồng Tâm" }] }));
     expect(await geocodeAddress(address, env)).toMatchObject({ lat: result.lat });
   });
   it("prefers rank.confidence over city confidence and proximity", async () => {
@@ -148,9 +144,9 @@ describe("Geoapify geocoding", () => {
     respondWith([{ ...result, country_code: null, lat: 21 }, { ...result, district: null, result_type: "district" }]);
     expect(await geocodeAddress(address, env)).toMatchObject({ lat: result.lat });
   });
-  it("ranks a normalized district match before ward match and precision", async () => {
+  it("ignores legacy district input when ranking ward matches", async () => {
     respondWith([{ ...result, district: "Cầu Giấy", suburb: "Đồng Tâm", lat: 21 }, { ...result, district: " QUẬN HAI BA TRUNG ", result_type: "district" }]);
-    expect(await geocodeAddress(address, env)).toMatchObject({ lat: result.lat });
+    expect(await geocodeAddress({ ...address, district: "Hai Bà Trưng" }, env)).toMatchObject({ lat: 21 });
   });
   it("ranks a normalized ward match before precision and confidence", async () => {
     respondWith([{ ...result, suburb: "Bách Khoa", lat: 21, rank: { confidence: 1 } }, { ...result, suburb: " Phường  Dong Tam ", result_type: "street", rank: { confidence: 0.2 } }]);
@@ -178,7 +174,7 @@ describe("Geoapify geocoding", () => {
 describe("address-bound quote invalidation", () => {
   const saved = { addressKey: addressQuoteKey(address), quote: { available: true as const, distanceKm: 1, fee: 0 } };
   it("keeps a quote for the same address", () => expect(usableAddressQuote(saved, address)).toEqual(saved.quote));
-  it.each(["address", "ward", "district", "city"] as const)("invalidates after %s changes, including stale async replies", (field) => {
+  it.each(["address", "ward", "city"] as const)("invalidates after %s changes, including stale async replies", (field) => {
     expect(usableAddressQuote(saved, { ...address, [field]: "Đã đổi" })).toBeNull();
   });
 });

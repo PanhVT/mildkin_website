@@ -1,4 +1,6 @@
+import { instagramSchema } from "@/lib/instagram";
 import { z } from "zod";
+import { paymentMethods } from "@/lib/payments/method";
 const field = (min: number, max: number) =>
   z
     .string()
@@ -9,13 +11,15 @@ const field = (min: number, max: number) =>
 export const deliveryAddressSchema = z.object({
   address: field(5, 250),
   ward: field(2, 100),
-  district: field(2, 100),
+  district: field(0, 100).optional(),
   city: z.literal("Hà Nội"),
 });
 export type DeliveryAddress = z.infer<typeof deliveryAddressSchema>;
 export const customerSchema = z.object({
   shippingMethod: z.enum(["DELIVERY", "PICKUP"]),
+  paymentMethod: z.enum(paymentMethods).default("BANK_TRANSFER"),
   customerName: field(2, 100),
+  customerInstagram: instagramSchema,
   phone: z
     .string()
     .trim()
@@ -31,7 +35,7 @@ export const customerSchema = z.object({
 }).superRefine((data, ctx) => {
   if (data.shippingMethod !== "DELIVERY") return;
   if (data.city !== "Hà Nội") ctx.addIssue({ code: "custom", path: ["city"], message: "Vui lòng chọn thành phố Hà Nội." });
-  for (const [name, min] of [["address", 5], ["ward", 2], ["district", 2]] as const) {
+  for (const [name, min] of [["address", 5], ["ward", 2]] as const) {
     if (data[name].length < min) ctx.addIssue({ code: "custom", path: [name], message: "Vui lòng điền đầy đủ thông tin giao hàng." });
   }
 

@@ -1,3 +1,5 @@
+import { formatOrderAddress } from "@/lib/address";
+import { paymentMethodLabel } from "@/lib/payments/method";
 import { ShippingDetails } from "@/components/orders/shipping-details";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -44,7 +46,7 @@ export default async function OrderDetail({
             </p>
             <ShippingDetails order={order} />
             {order.shippingMethod === "DELIVERY" && <p>
-              {order.address}, {order.ward}, {order.district}, {order.city}
+              {formatOrderAddress(order)}
             </p>}
             <p>Ghi chú: {order.note || "Không có"}</p>
           </section>
@@ -77,9 +79,10 @@ export default async function OrderDetail({
         <div>
           <section className="admin-card">
             <h2>Thanh toán</h2>
-            <p>{statusLabels[order.paymentStatus]}</p>
+            <p>{paymentMethodLabel(order.paymentMethod, order.shippingMethod)}</p>
+            <p>{order.paymentMethod === "COD" && order.paymentStatus === "PENDING" ? "Chưa thu tiền" : statusLabels[order.paymentStatus]}</p>
             <p>Đặt lúc: {formatDate(order.createdAt)}</p>
-            <p>Hết hạn: {formatDate(order.expiresAt)}</p>
+            {order.paymentMethod === "BANK_TRANSFER" && <p>Hết hạn: {formatDate(order.expiresAt)}</p>}
             <p>
               Thanh toán lúc:{" "}
               {order.paidAt ? formatDate(order.paidAt) : "Chưa thanh toán"}

@@ -65,7 +65,7 @@ describe("order helpers", () => {
   });
   it("validates Vietnamese phone and rejects duplicate product IDs", () => {
     const valid = {
-      customerName: "Nguyễn An",
+      customerName: "Nguyễn An", customerInstagram: "@Test.Buyer",
       phone: "+84912345678",
       address: "12 đường thử",
       ward: "Phường thử",

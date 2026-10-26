@@ -35,6 +35,7 @@ export function Header({ authenticated = false }: { authenticated?: boolean }) {
               ["/", "Trang chủ"],
               ["/menu", "Menu bánh"],
               ["/about", "Về Mildkin"],
+              ["/seller/login", "Dành cho người bán"],
               [
                 authenticated ? "/account" : "/login",
                 authenticated ? "Tài khoản" : "Đăng nhập",

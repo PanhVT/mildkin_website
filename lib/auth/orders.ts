@@ -16,6 +16,8 @@ export async function userOrders(
       total: orders.total,
       status: orders.status,
       paymentStatus: orders.paymentStatus,
+      paymentMethod: orders.paymentMethod,
+      shippingMethod: orders.shippingMethod,
     })
     .from(orders)
     .where(eq(orders.userId, userId))
@@ -48,6 +50,7 @@ export async function userOrder(
       deliveryDistanceMeters: orders.deliveryDistanceMeters,
       total: orders.total,
       paymentStatus: orders.paymentStatus,
+      paymentMethod: orders.paymentMethod,
       status: orders.status,
       createdAt: orders.createdAt,
     })

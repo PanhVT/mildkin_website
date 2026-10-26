@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createOrder } from "@/lib/orders/service";
+import { orderPaymentPath } from "@/lib/payments/method";
 import { getEnv } from "@/lib/env";
 import {
   apiError,
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     });
-    return json({ orderCode: order.orderCode }, 201);
+    return json({ orderCode: order.orderCode, paymentMethod: order.paymentMethod, redirectTo: orderPaymentPath(order) }, 201);
   } catch (error) {
     return apiError(error);
   }

@@ -3,7 +3,7 @@ import { PublicError } from "@/lib/http";
 export async function limitAuth(
   db: D1Database,
   request: Request,
-  action: "login" | "register",
+  action: "login" | "register" | "seller-login",
   email?: string,
 ) {
   const now = Date.now();

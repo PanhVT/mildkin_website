@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CartProvider } from "@/components/cart/cart-provider";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
+import { BuyerChrome } from "@/components/layout/buyer-chrome";
 import { site } from "@/config/site";
 import "./globals.css";
 import localFont from "next/font/local";
@@ -43,9 +44,13 @@ export default async function RootLayout({
           <a href="#main" className="skip-link">
             Đến nội dung chính
           </a>
-          <Header authenticated={Boolean(await getCurrentUser())} />
+          <BuyerChrome>
+            <Header authenticated={Boolean(await getCurrentUser())} />
+          </BuyerChrome>
           <main id="main">{children}</main>
-          <Footer />
+          <BuyerChrome>
+            <Footer />
+          </BuyerChrome>
         </CartProvider>
       </body>
     </html>

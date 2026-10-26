@@ -22,6 +22,7 @@ import { sha256 } from "@/lib/security";
 import { safeNext } from "@/lib/auth/validation";
 import type { Env } from "@/lib/env";
 vi.mock("@/lib/geocoding", () => ({ geocodeAddress: vi.fn() }));
+vi.mock("@/lib/routing", () => ({ roadDistanceKm: vi.fn(async (_env, lat: number) => Math.abs(lat) * 6371 * Math.PI / 180) }));
 import { geocodeAddress } from "@/lib/geocoding";
 const geocode = vi.mocked(geocodeAddress);
 let mf: Miniflare;
@@ -36,7 +37,7 @@ const registration = (email = "ban@example.test") => ({
   confirmPassword: password,
 });
 const checkout = () => ({
-  customerName: "Người nhận khác",
+  customerName: "Người nhận khác", customerInstagram: "@Test.Buyer",
   phone: "0987654321",
   address: "12 Đường thử nghiệm",
   ward: "Phường thử",
@@ -68,13 +69,14 @@ const request = (
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
-let legacyCheck: { user_id: unknown; stock: number; triggers: number; shipping_method: unknown; delivery_distance_meters: unknown; total: unknown };
+let legacyCheck: { user_id: unknown; stock: number; triggers: number; shipping_method: unknown; delivery_distance_meters: unknown; total: unknown; pack_label: unknown; payment_method: unknown };
 beforeAll(async () => {
   mf = new Miniflare(
     convertV4MiniflareOptions({
       modules: true,
       script: `export default {async fetch(){const key=await crypto.subtle.importKey('raw',new TextEncoder().encode('runtime-password'),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:new Uint8Array(32),iterations:${PASSWORD_ITERATIONS}},key,256);return new Response(String(bits.byteLength));}}`,
       d1Databases: ["DB"],
+      r2Buckets: ["PRODUCT_IMAGES"],
       compatibilityDate: "2026-09-01",
     }),
   );
@@ -83,7 +85,8 @@ beforeAll(async () => {
     .filter((f) => f.endsWith(".sql"))
     .sort()) {
     if (file.startsWith("0002")) {
-      await db.prepare(await readFile("db/seed.sql", "utf8")).run();
+      // A legacy fixture must not depend on fields introduced by later migrations.
+      await db.prepare("INSERT INTO products (id,slug,name,description,price,image_url,flavor,stock,created_at,updated_at) VALUES ('original','original','Original','Legacy cookie',22000,'/images/original.webp','original',100,1,1)").run();
       await db
         .prepare(
           "INSERT INTO orders (id,order_code,access_token_hash,customer_name,phone,address,ward,district,city,subtotal,shipping_fee,total,bank_code,bank_account,account_holder,created_at,updated_at,expires_at) VALUES ('legacy','MK0000000001','legacy-hash','Legacy','0912345678','Legacy address','Ward','District','Hà Nội',22000,25000,47000,'VCB','123456789','TEST',1,1,9999999999999)",
@@ -97,6 +100,8 @@ beforeAll(async () => {
   }
   const legacy = await db.prepare("SELECT shipping_method, delivery_distance_meters, total FROM orders WHERE id='legacy'").first();
   legacyCheck = {
+    payment_method: (await db.prepare("SELECT payment_method FROM orders WHERE id='legacy'").first())?.payment_method,
+    pack_label: (await db.prepare("SELECT pack_label FROM products WHERE id='original'").first())?.pack_label,
     shipping_method: legacy?.shipping_method,
     delivery_distance_meters: legacy?.delivery_distance_meters,
     total: legacy?.total,
@@ -112,6 +117,7 @@ beforeAll(async () => {
   };
   env = {
     DB: db,
+    PRODUCT_IMAGES: (await mf.getR2Bucket("PRODUCT_IMAGES")) as unknown as R2Bucket,
     SITE_URL: "https://test.example",
     PAYMENT_PROVIDER: "sepay",
     SEPAY_BANK_CODE: "VCB",
@@ -159,11 +165,13 @@ describe("password and session security", () => {
     );
   });
   it("new migration retains legacy orders, stock and reservation/payment triggers", () => {
+    expect(legacyCheck.payment_method).toBe("BANK_TRANSFER");
     expect(legacyCheck.user_id).toBeNull();
     expect(legacyCheck.shipping_method).toBe("DELIVERY");
     expect(legacyCheck.delivery_distance_meters).toBeNull();
     expect(legacyCheck.total).toBe(47000);
     expect(legacyCheck.stock).toBe(100);
+    expect(legacyCheck.pack_label).toBe("3 cookies / pack");
     expect(legacyCheck.triggers).toBeGreaterThanOrEqual(3);
   });
   it("creates a random session storing only a token hash", async () => {
@@ -431,6 +439,8 @@ describe("account order isolation and guest checkout", () => {
     const data = { ...checkout(), userId: other.user.id };
     const { order } = await createOrder(env, data, session.token);
     expect(order.userId).toBe(user.id);
+    expect(order.customerInstagram).toBe("test.buyer");
+    expect(await db.prepare("SELECT customer_instagram FROM orders WHERE id=?").bind(order.id).first("customer_instagram")).toBe("test.buyer");
     expect(order.customerName).toBe("Người nhận khác");
     expect(order.phone).toBe("0987654321");
     const retried = await createOrder(env, data, other.session.token);
@@ -442,6 +452,8 @@ describe("account order isolation and guest checkout", () => {
     const { user, session } = await registerUser(db, registration());
     const guest = await createOrder(env, { ...checkout(), userId: user.id });
     expect(guest.order.userId).toBeNull();
+    expect(guest.order.customerInstagram).toBe("test.buyer");
+    expect(await db.prepare("SELECT customer_instagram FROM orders WHERE id=?").bind(guest.order.id).first("customer_instagram")).toBe("test.buyer");
     await db.prepare("UPDATE sessions SET expires_at=1").run();
     const expired = await createOrder(
       env,

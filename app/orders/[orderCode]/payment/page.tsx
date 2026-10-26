@@ -15,7 +15,7 @@ export default async function PaymentPage({
   params: Promise<{ orderCode: string }>;
 }) {
   const order = await requireOrder((await params).orderCode);
-  if (order.paymentStatus === "PAID")
+  if (order.paymentMethod === "COD" || order.paymentStatus === "PAID")
     redirect(`/orders/${order.orderCode}/success`);
   return (
     <section className="container section">

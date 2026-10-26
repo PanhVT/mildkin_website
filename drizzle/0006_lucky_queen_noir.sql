@@ -1,0 +1,1 @@
+ALTER TABLE `products` ADD `pack_label` text DEFAULT '3 cookies / pack';

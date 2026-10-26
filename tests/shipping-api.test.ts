@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
-  getEnv: vi.fn(), limitShippingQuote: vi.fn(), geocode: vi.fn(),
+  getEnv: vi.fn(), limitShippingQuote: vi.fn(), geocode: vi.fn(), route: vi.fn(),
 }));
 vi.mock("@/lib/env", () => ({ getEnv: mocks.getEnv }));
 vi.mock("@/lib/rate-limit", () => ({ limitShippingQuote: mocks.limitShippingQuote }));
 vi.mock("@/lib/geocoding", () => ({ geocodeAddress: mocks.geocode }));
-const address = { address: "10 Lê Thanh Nghị", ward: "Đồng Tâm", district: "Hai Bà Trưng", city: "Hà Nội" };
+vi.mock("@/lib/routing", () => ({ roadDistanceKm: mocks.route }));
+const address = { address: "10 Lê Thanh Nghị", ward: "Đồng Tâm", city: "Hà Nội" };
 import { POST } from "@/app/api/shipping/quote/route";
 import { PublicError } from "@/lib/http";
 const request = (body: unknown, origin = "https://test.example") => new Request("https://test.example/api/shipping/quote", {
@@ -14,6 +15,7 @@ const request = (body: unknown, origin = "https://test.example") => new Request(
 beforeEach(() => {
   mocks.getEnv.mockResolvedValue({ SITE_URL: "https://test.example", STORE_LAT: "0", STORE_LNG: "0" });
   mocks.limitShippingQuote.mockReset();
+  mocks.route.mockReset().mockResolvedValue(3.2);
   mocks.geocode.mockReset().mockResolvedValue({ lat: 3.2 / (6371 * Math.PI / 180), lng: 0 });
 });
 describe("shipping quote API", () => {
@@ -25,7 +27,7 @@ describe("shipping quote API", () => {
     expect(mocks.limitShippingQuote).toHaveBeenCalledOnce();
   });
   it("returns OUT_OF_RANGE exactly at 8 km", async () => {
-    mocks.geocode.mockResolvedValue({ lat: 8 / (6371 * Math.PI / 180), lng: 0 });
+    mocks.route.mockResolvedValue(8);
     const response = await POST(request(address));
     expect(await response.json()).toEqual({ available: false, distanceKm: 8, fee: null, reason: "OUT_OF_RANGE" });
   });
@@ -53,3 +55,4 @@ describe("shipping quote API", () => {
     expect((await POST(request(address))).status).toBe(429);
   });
 });
+

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getProducts } from "@/lib/catalog";
 import { ProductCard } from "@/components/products/product-card";
-import { MysteryFace } from "@/components/products/mystery-face";
+import { groupMenuProducts } from "@/lib/products/line";
 import "./menu.css";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -10,38 +10,38 @@ export const metadata: Metadata = {
     "Khám phá Original, Chocolate, Matcha, Mixed và Mystery Face cookies của Mildkin.",
 };
 export default async function MenuPage() {
-  const products = await getProducts();
-  const standardProducts = products.filter(
-    (product) => product.slug !== "mixed-mystery-face",
-  );
-  const mysteryFace = products.find(
-    (product) => product.slug === "mixed-mystery-face",
-  );
+  const products = await getProducts({ inStockFirst: true });
+  const { signature_standard: standardProducts, signature_special: specialProducts, chunky } = groupMenuProducts(products);
   return (
     <section className="container section">
       <div className="page-intro">
-        <span className="eyebrow">MENU · BAKED WITH LOVE & BUTTER</span>
+        <span className="eyebrow">FROM OUR LITTLE OVEN</span>
         <h1>
-          Hôm nay, bạn thích <em>vị nào?</em>
+          Chọn một chút <em>ngọt ngào.</em>
         </h1>
         <p>
-          Mỗi gói 3 chiếc cookies nhỏ xinh. Một mình thưởng thức hay gửi tặng
-          đều vừa đủ thương.
+          Một mình thưởng thức hay gửi tặng đều vừa đủ thương.
         </p>
-        <p className="menu-pack">Butter Cookies · 3 cookies / pack</p>
       </div>
-      <section aria-labelledby="standard-title">
-        <div className="menu-category">
-          <h2 id="standard-title">Standard</h2>
-          <p>Những người bạn quen thuộc của Mildkin.</p>
-        </div>
+      {(standardProducts.length > 0 || specialProducts.length > 0) && <section className="menu-line" aria-labelledby="signature-title">
+        <header className="menu-line-heading"><h2 id="signature-title">MILDKIN SIGNATURE</h2><p>Những chiếc bánh nhỏ xinh làm nên Mildkin.</p></header>
+        {standardProducts.length > 0 && <section aria-labelledby="standard-title">
+        <div className="menu-category"><h3 id="standard-title">STANDARD</h3></div>
         <div className="product-grid">
           {standardProducts.map((product) => (
             <ProductCard key={product.id} product={product} withQuantity />
           ))}
         </div>
-      </section>
-      {mysteryFace && <MysteryFace product={mysteryFace} />}
+        </section>}
+      {specialProducts.length > 0 && <section className="menu-special" aria-labelledby="special-title">
+        <div className="menu-category"><h3 id="special-title">SPECIAL</h3></div>
+        <div className="product-grid">{specialProducts.map((product) => <ProductCard key={product.id} product={product} withQuantity />)}</div>
+      </section>}
+      </section>}
+      {chunky.length > 0 && <section className="menu-line" aria-labelledby="chunky-title">
+        <header className="menu-line-heading"><h2 id="chunky-title">CHUNKY COOKIES</h2><p>To hơn, mềm hơn, đầy đặn hơn.</p></header>
+        <div className="product-grid">{chunky.map(product => <ProductCard key={product.id} product={product} withQuantity />)}</div>
+      </section>}
       {!products.length && (
         <p className="empty-state">
           Mẻ bánh mới đang được chuẩn bị. Bạn ghé lại sau nhé.

@@ -31,7 +31,7 @@ describe("NEU shipping tariff", () => {
   });
 });
 describe("shipping validation", () => {
-  const customer = { customerName: "Khách thử", phone: "0912345678", shippingMethod: "PICKUP" };
+  const customer = { customerName: "Khách thử", customerInstagram: "@Test.Buyer", phone: "0912345678", shippingMethod: "PICKUP" };
   it("pickup needs neither delivery address nor coordinates", () => {
     expect(customerSchema.safeParse(customer).success).toBe(true);
   });

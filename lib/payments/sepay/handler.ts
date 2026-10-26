@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/d1";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { orders, payments } from "@/db/schema";
 import { type Env } from "@/lib/env";
 import { readBody, parseJson, PublicError, json, apiError } from "@/lib/http";
@@ -36,10 +36,11 @@ export async function handleWebhook(request: Request, env: Env) {
       /* Unknown banks remain unmatched for review. */
     }
     // Trigger atomically matches bank/account/amount/state/expiry. Unique transaction ID makes retries no-ops.
-    await db
+    const paymentId = crypto.randomUUID();
+    await db.batch([db
       .insert(payments)
       .values({
-        id: crypto.randomUUID(),
+        id: paymentId,
         orderId: order?.id ?? null,
         provider: "sepay",
         providerTransactionId: String(payload.id),
@@ -51,7 +52,17 @@ export async function handleWebhook(request: Request, env: Env) {
         rawPayload: raw,
         createdAt: Date.now(),
       })
-      .onConflictDoNothing({ target: payments.providerTransactionId });
+      .onConflictDoNothing({ target: payments.providerTransactionId }),
+      // The existing trigger validates and settles first. Advance only the order
+      // settled by THIS insert, in the same atomic batch. Replays, late/review
+      // receipts and COD cannot enter preparation or rewind fulfillment.
+      db.update(orders).set({ status: "PREPARING" }).where(and(
+        eq(orders.paidPaymentId, paymentId),
+        eq(orders.paymentMethod, "BANK_TRANSFER"),
+        eq(orders.paymentStatus, "PAID"),
+        eq(orders.status, "PAID"),
+      )),
+    ]);
     return json({ success: true });
   } catch (error) {
     return apiError(error);

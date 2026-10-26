@@ -7,70 +7,52 @@ import {
   Heart,
   Leaf,
   Sparkles,
+  Asterisk,
   Camera as Instagram,
 } from "lucide-react";
-import { getProducts } from "@/lib/catalog";
+import { getFeaturedProducts } from "@/lib/catalog";
 import { ProductCard } from "@/components/products/product-card";
 import { site } from "@/config/site";
 export const dynamic = "force-dynamic";
 export default async function Home() {
-  const products = await getProducts();
+  const products = await getFeaturedProducts();
   return (
     <div className="home-page">
-      <section className="container hero">
-        <div className="hero-copy">
-          <span className="eyebrow">
-            <span className="tiny-star">✳</span> HANDMADE COOKIES · HÀ NỘI
-          </span>
-          <h1>
-            Một chiếc bánh nhỏ.
-            <br />
-            Một ngày <em>dịu hơn.</em>
-          </h1>
-          <p>
-            Thơm bơ, ngọt nhẹ, nướng bằng cả sự chăm chút.
-            <br className="desktop-break" /> Mildkin gửi bạn một chút bình yên
-            trong từng chiếc bánh.
-          </p>
-          <div className="hero-actions">
-            <Link className="button" href="/menu">
-              Đặt bánh ngay <ArrowUpRight size={18} />
-            </Link>
-            <Link className="text-link" href="#menu">
-              Xem menu <ArrowRight size={17} />
-            </Link>
+      <section className="home-hero" aria-label="Mildkin — bánh quy thủ công">
+        <div className="container hero">
+          <div className="hero-copy">
+            <span className="eyebrow">
+              <Asterisk aria-hidden="true" focusable="false" className="homepage-separator hero-separator" color="#314822" strokeWidth={2} /> HANDMADE COOKIES · HÀ NỘI
+            </span>
+            <h1>
+              Một chiếc bánh nhỏ.
+              <br />
+              Một ngày <em>dịu hơn.</em>
+            </h1>
+            <p>
+              Thơm bơ, ngọt nhẹ, nướng bằng cả sự chăm chút.
+              <br className="desktop-break" /> Mildkin gửi bạn một chút bình yên
+              trong từng chiếc bánh.
+            </p>
+            <div className="hero-actions">
+              <Link className="button" href="/menu">
+                Đặt bánh ngay <ArrowUpRight size={18} />
+              </Link>
+              <Link className="text-link" href="/menu">
+                Xem menu <ArrowRight size={17} />
+              </Link>
+            </div>
+            <div className="hero-note">
+              <Heart size={15} /> little cookies, gentle moments.
+            </div>
           </div>
-          <div className="hero-note">
-            <Heart size={15} /> little cookies, gentle moments.
-          </div>
-        </div>
-        <div className="hero-visual">
-          <div className="hero-photo">
-            <Image
-              src="/images/cookies.webp"
-              alt="Đĩa cookies Mildkin hình thỏ, mèo và gấu trên khăn hồng"
-              fill
-              priority
-              sizes="(max-width: 800px) 100vw, 55vw"
-            />
-          </div>
-          <div className="round-stamp">
-            baked with
-            <br />
-            <Heart size={24} />
-            <span>love & butter</span>
-          </div>
-          <div className="photo-note">nhỏ xinh, thơm bơ, thương lắm ♡</div>
         </div>
       </section>
       <div className="values-ribbon">
-        <span>Nướng mới mỗi mẻ</span>
-        <span>✳</span>
-        <span>Ngọt vừa đủ</span>
-        <span>✳</span>
-        <span>Thủ công từ trái tim</span>
-        <span>✳</span>
-        <span>Một gói, ba niềm vui</span>
+        {["Nướng mới mỗi mẻ", "Ngọt vừa đủ", "Thủ công từ trái tim", "Một gói, ba niềm vui"].map((text, index) => <span className="values-ribbon-item" key={text}>
+          {index > 0 && <Asterisk aria-hidden="true" focusable="false" className="homepage-separator" color="#314822" strokeWidth={2} />}
+          <span>{text}</span>
+        </span>)}
       </div>
       <section id="menu" className="section container">
         <div className="section-heading">
@@ -79,19 +61,27 @@ export default async function Home() {
             <h2>
               Chọn một chút <em>ngọt ngào.</em>
             </h2>
-            <p>Bốn hương vị thân quen. Bạn sẽ thương vị nào?</p>
+            <p>Những chiếc bánh đang sẵn sàng. Bạn sẽ thương vị nào?</p>
           </div>
           <Link className="text-link" href="/menu">
             Khám phá menu <ArrowUpRight size={17} />
           </Link>
         </div>
-        <div className="product-grid">
-          {products.slice(0, 4).map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        {products.length > 0 ? (
+          <div className="product-grid">
+            {products.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <h3>Bánh đang được Mildkin chuẩn bị thêm ♡</h3>
+            <p>Bạn quay lại một chút nhé.</p>
+            <Link className="button" href="/menu">Xem menu</Link>
+          </div>
+        )}
         <p className="image-disclaimer">
-          Ảnh bánh Mildkin · Mỗi gói gồm 3 cookies, hình dáng có thể thay đổi
+          Ảnh bánh Mildkin · Hình dáng có thể thay đổi
           theo mẻ bánh.
         </p>
       </section>
@@ -107,7 +97,7 @@ export default async function Home() {
           <div className="why-grid">
             <article>
               <div className="feature-icon">
-                <Sparkles />
+                <Sparkles aria-hidden="true" color="#314822" />
               </div>
               <span className="small-label">01 / FRESHLY BAKED</span>
               <h3>Thơm từ mẻ bánh mới</h3>

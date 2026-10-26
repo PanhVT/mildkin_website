@@ -38,6 +38,9 @@ export function shippingConfig(env: { STORE_LAT?: string; STORE_LNG?: string }) 
 export function quoteShipping(env: { STORE_LAT?: string; STORE_LNG?: string }, customerLat: number, customerLng: number): ShippingQuote {
   const { storeLat, storeLng } = shippingConfig(env);
   const distanceKm = haversineDistanceKm(storeLat, storeLng, customerLat, customerLng);
+  return quoteShippingDistance(distanceKm);
+}
+export function quoteShippingDistance(distanceKm: number): ShippingQuote {
   const fee = calculateShippingFee(distanceKm);
   return fee === null
     ? { available: false, distanceKm, fee: null, reason: "OUT_OF_RANGE" }

@@ -4,7 +4,9 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LockKeyhole, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { PaymentOptions } from "./payment-options";
+import { paymentMethodLabel } from "@/lib/payments/method";
 import { customerSchema, type DeliveryAddress, type CustomerInput, type CustomerData } from "@/lib/validation";
 import { useCart } from "@/components/cart/cart-provider";
 import { formatCurrency } from "@/lib/currency";
@@ -37,18 +39,20 @@ export function CheckoutForm({
     resolver: zodResolver(customerSchema),
     defaultValues: {
       shippingMethod: "DELIVERY",
+      paymentMethod: "BANK_TRANSFER",
       address: "",
       ward: "",
-      district: "",
       city: "Hà Nội",
       note: "",
       customerName: customer?.name || "",
+      customerInstagram: "",
       phone: customer?.phone || "",
     },
   });
   const shippingMethod = useWatch({ control, name: "shippingMethod" });
-  const addressFields = useWatch({ control, name: ["address", "ward", "district", "city"] });
-  const deliveryAddress: DeliveryAddress = { address: addressFields[0] || "", ward: addressFields[1] || "", district: addressFields[2] || "", city: addressFields[3] || "Hà Nội" };
+  const paymentMethod = useWatch({ control, name: "paymentMethod" }) || "BANK_TRANSFER";
+  const addressFields = useWatch({ control, name: ["address", "ward", "city"] });
+  const deliveryAddress: DeliveryAddress = { address: addressFields[0] || "", ward: addressFields[1] || "", city: addressFields[2] || "Hà Nội" };
   const currentQuote = usableAddressQuote(quote, deliveryAddress);
   const shippingFee = shippingMethod === "PICKUP" ? 0 : currentQuote?.available ? currentQuote.fee : null;
   function resetQuote() {
@@ -88,11 +92,12 @@ export function CheckoutForm({
       const data = (await response.json()) as {
         error?: string;
         orderCode: string;
+        redirectTo: string;
       };
       if (!response.ok)
         throw new Error(data.error || "Chưa tạo được đơn. Vui lòng thử lại.");
       clear();
-      router.push(`/orders/${data.orderCode}/payment`);
+      router.push(data.redirectTo);
     } catch (e) {
       setError(
         e instanceof Error
@@ -120,6 +125,7 @@ export function CheckoutForm({
     autoComplete: string;
     type?: string;
   }[] = [
+    { name: "customerInstagram", label: "Instagram của bạn", placeholder: "@username", autoComplete: "off" },
     {
       name: "customerName",
       label: "Họ và tên",
@@ -143,17 +149,11 @@ export function CheckoutForm({
       name: "ward",
       label: "Phường / Xã",
       placeholder: "Phường / xã nhận bánh",
-      autoComplete: "address-level3",
-    },
-    {
-      name: "district",
-      label: "Quận / Huyện (khu vực)",
-      placeholder: "Khu vực giao hàng",
       autoComplete: "address-level2",
     },
     {
       name: "city",
-      label: "Thành phố",
+      label: "Tỉnh / Thành phố",
       placeholder: "Hà Nội",
       autoComplete: "address-level1",
     },
@@ -162,7 +162,7 @@ export function CheckoutForm({
     <form
       onSubmit={(event) => void handleSubmit(submit)(event)}
       onChange={(event) => {
-        if (event.target instanceof HTMLInputElement && ["address", "ward", "district", "city"].includes(event.target.name)) resetQuote();
+        if (event.target instanceof HTMLInputElement && ["address", "ward", "city"].includes(event.target.name)) resetQuote();
       }}
       className="checkout-grid"
       noValidate
@@ -171,7 +171,7 @@ export function CheckoutForm({
         <h2>Gửi bánh đến bạn</h2>
         <p>Giao trong phạm vi dưới 8 km từ Đại học Kinh tế Quốc dân, hoặc nhận bánh tại NEU.</p>
         <div className="form-grid">
-          {fields.filter((field) => shippingMethod === "DELIVERY" || ["customerName", "phone"].includes(field.name)).map((field) => (
+          {fields.filter((field) => shippingMethod === "DELIVERY" || ["customerName", "phone", "customerInstagram"].includes(field.name)).map((field) => (
             <div
               className={`field ${field.name === "address" ? "wide" : ""}`}
               key={field.name}
@@ -187,10 +187,11 @@ export function CheckoutForm({
                 readOnly={field.name === "city"}
                 aria-invalid={!!errors[field.name]}
                 aria-describedby={
-                  errors[field.name] ? `${field.name}-error` : undefined
+                  [field.name === "customerInstagram" ? "instagram-help" : "", errors[field.name] ? `${field.name}-error` : ""].filter(Boolean).join(" ") || undefined
                 }
                 {...register(field.name)}
               />
+              {field.name === "customerInstagram" && <p id="instagram-help" className="muted">Mildkin sẽ dùng Instagram này để xác nhận đơn và liên hệ về việc giao/nhận bánh.</p>}
               {errors[field.name] && (
                 <p id={`${field.name}-error`} className="form-error">
                   {errors[field.name]?.message}
@@ -222,6 +223,9 @@ export function CheckoutForm({
           onReset={resetQuote}
           disabled={isSubmitting}
         />
+        <PaymentOptions method={paymentMethod} shippingMethod={shippingMethod} disabled={isSubmitting}
+          onChange={method => setValue("paymentMethod", method, { shouldValidate: true })} />
+        {errors.paymentMethod && <p className="form-error">{errors.paymentMethod.message}</p>}
       </div>
       <aside className="summary">
         <h2>Một túi ngọt ngào</h2>
@@ -245,10 +249,9 @@ export function CheckoutForm({
           <strong>{formatCurrency(subtotal + (shippingFee ?? 0))}</strong>
         </div>
         <div className="payment-method">
-          <LockKeyhole size={18} />
           <div>
-            <strong>Chuyển khoản ngân hàng</strong>
-            <p>Quét QR · Tự động xác nhận</p>
+            <strong>{paymentMethodLabel(paymentMethod, shippingMethod)}</strong>
+            <p>{paymentMethod === "COD" ? "Chưa cần thanh toán ngay" : "Quét QR · Tự động xác nhận"}</p>
           </div>
         </div>
         {error && (
@@ -267,11 +270,11 @@ export function CheckoutForm({
           disabled={isSubmitting || invalid || shippingFee === null}
           type="submit"
         >
-          {isSubmitting ? "Đang tạo đơn…" : "Đặt hàng"}
+          {isSubmitting ? "Đang tạo đơn…" : paymentMethod === "COD" ? "Đặt bánh" : "Đặt hàng"}
           <ArrowRight size={17} />
         </button>
         <p className="fine-print">
-          Bạn sẽ có 15 phút để thanh toán sau khi đặt hàng.
+          {paymentMethod === "COD" ? "Bạn sẽ thanh toán khi nhận bánh. Không phát sinh phí COD." : "Bạn sẽ có 15 phút để thanh toán sau khi đặt hàng."}
         </p>
       </aside>
     </form>

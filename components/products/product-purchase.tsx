@@ -10,7 +10,7 @@ export function ProductPurchase({ product, withQuantity = false }: { product: Pr
   const remaining =
     Math.min(20, product.stock) -
     (items.find((i) => i.productId === product.id)?.quantity || 0);
-  const unavailable = remaining < quantity;
+  const unavailable = !product.active || remaining < quantity;
   return (
       <div className="product-actions">
         {withQuantity && (
@@ -35,10 +35,10 @@ export function ProductPurchase({ product, withQuantity = false }: { product: Pr
         <button
           className="add-button"
           disabled={unavailable}
-          onClick={() => add(product.id, quantity)}
+          onClick={() => { if (!unavailable) add(product.id, quantity); }}
         >
           <Plus size={16} />
-          {unavailable ? "Đã đủ số lượng" : "Thêm vào giỏ"}
+          {product.stock <= 0 ? "Hết hàng" : unavailable ? "Đã đủ số lượng" : "Thêm vào giỏ"}
         </button>
       </div>
   );

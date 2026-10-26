@@ -1,7 +1,9 @@
+import { orderStatusLabel } from "@/lib/seller/order-status";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/currency";
 import { formatDate, statusLabels } from "@/lib/status";
 import type { userOrders } from "@/lib/auth/orders";
+import { paymentMethodLabel } from "@/lib/payments/method";
 export function OrderHistory({
   rows,
 }: {
@@ -31,11 +33,11 @@ export function OrderHistory({
             </div>
             <div>
               <dt>Thanh toán</dt>
-              <dd>{statusLabels[order.paymentStatus]}</dd>
+              <dd>{paymentMethodLabel(order.paymentMethod, order.shippingMethod)} — {order.paymentMethod === "COD" && order.paymentStatus === "PENDING" ? "Chưa thanh toán" : statusLabels[order.paymentStatus]}</dd>
             </div>
             <div>
               <dt>Đơn hàng</dt>
-              <dd>{statusLabels[order.status]}</dd>
+              <dd>{orderStatusLabel(order.status, order.paymentMethod)}</dd>
             </div>
           </dl>
           <Link

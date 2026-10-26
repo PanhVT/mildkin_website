@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
 import { getEnv } from "@/lib/env";
+import { updateSellerOrder } from "@/lib/seller/data";
+import { revalidatePath } from "next/cache";
 import {
   json,
   apiError,
@@ -22,22 +24,16 @@ export async function PATCH(
       .safeParse(parseJson(await readBody(request)));
     if (!parsed.success) throw new PublicError("Trạng thái không hợp lệ.");
     const { status } = parsed.data;
-    const prior = {
-      PREPARING: "PAID",
-      SHIPPING: "PREPARING",
-      COMPLETED: "SHIPPING",
-    }[status];
-    const result = await env.DB.prepare(
-      "UPDATE orders SET status=?, updated_at=? WHERE order_code=? AND status=? AND payment_status='PAID'",
-    )
-      .bind(status, Date.now(), (await params).orderCode, prior)
-      .run();
-    if (!result.meta.changes)
-      throw new PublicError(
-        "Trạng thái đơn đã thay đổi. Vui lòng tải lại trang.",
-        409,
-      );
-    return json({ success: true });
+    const order = await env.DB.prepare("SELECT id,payment_status FROM orders WHERE order_code=?")
+      .bind((await params).orderCode).first<{ id: string; payment_status: string }>();
+    if (!order || order.payment_status !== "PAID") throw new PublicError("Đơn chưa thanh toán hoặc đã thay đổi. Vui lòng tải lại trang.", 409);
+    // Legacy admin writes must enforce the same assignment and delivery sync rules.
+    const result = await updateSellerOrder(env.DB, order.id, { status });
+    revalidatePath("/seller", "layout");
+    revalidatePath("/admin", "layout");
+    revalidatePath("/account/orders", "layout");
+    revalidatePath("/orders/[orderCode]/success", "page");
+    return json(result);
   } catch (error) {
     return apiError(error);
   }
